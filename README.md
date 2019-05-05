@@ -1,7 +1,13 @@
 # RM_TaskScheduling
-Analyze schedulability under rate-monotonic(RM) scheduling. Life is so hard
+Analyze schedulability under rate-monotonic(RM) scheduling. Life is so hard.
 
 ## Some examples for usage
+```python
+# First load the whole code. Module packing or file input will be provided in
+# the future, probably.
+exec(open("./RMScheduling.py", "r").read())
+```
+
 ```python
 # T: Task period, C: Longest execution time, D: Deadline
 tasks = [{'T': 9, 'C': 1.6}, {'T': 8, 'C': 1.6, 'D': 7}, {'T': 2, 'C': 0.6}]
