@@ -2,12 +2,37 @@
     Structure:
         T: task period
         C: Computation time
-
+        B: Blocking
+        Res: Resource
 """
 import math
 from itertools import islice
 import numpy as np
 from sklearn.feature_extraction import DictVectorizer
+
+# Terminal prints
+_TASK_HEAD_TITLE_FS = "*** Schedulability of T_{:d} ***"
+_TASK_ANALYSIS_TITLE1_FS = "== Part 1: Utility =="
+_TASK_ANALYSIS_TITLE2_FS = "\n== Part 2: Real Analysis =="
+_PART1_UTILITY_CPR_FS = "  Utility = {0:.4f} {1:s} {2:.4f}."
+_PART1_UTILITY_PASS = "  Pass utility test."
+_PART1_UTILITY_FAIL = "  Failed on utility test."
+_PART2_R0_FS = "                        --> R_00 = {:.4f}"
+_PART2_IT_FS = "  # Iteration {:d} #"
+_PART2_BS_FS = "    Base: C_{:d} = {:.4f}"
+_PART2_DL_FS = "    Delay from task {:d} = {:.4f}"
+_PART2_RN_FS = "                        --> R_{:02d} = {:.4f}"
+_PART2_PASS = "  Converge. Schedulable.\n"
+_PART2_FAIL = "  Over deadline. Unschedulable.\n"
+
+# Task info table components
+_TASK_TABLE_HEAD = "\n  Task |    T    |    C    |    D    |    B    |   beta   |    C'    |"
+_TASK_TABLE_SEPR = "-------+---------+---------+---------+---------+----------+----------+"
+_TASK_CONTENT_FT = "   {:02d}  |  {:5.2f}  |  {:5.2f}  |  {:5.2f}  |  {:5.2f}  |  {:5.2f}   |  {:5.2f}   |"
+_TASK_TABLE_ENDL = "----------------------------------------------------------------------\n"
+
+# Policy options
+_POLICIES = ["PIP", "SRP"]
 
 def util_bound(n):
     """ Function used to compute utilization bound.
@@ -18,10 +43,6 @@ def util_bound(n):
             (float) Utilization oundary
     """
     return n * (pow(2.0, 1/n) - 1.0)
-
-""" Note for possible settings:
-    "CtSw": Context Switch
-"""
 
 def util(series, i, settings, beta=0.0):
     """ Function to compute utilization rate
@@ -39,11 +60,6 @@ def util(series, i, settings, beta=0.0):
 
     return sum(task_results)
 
-
-_TASK_TABLE_HEAD = "\n  Task |    T    |    C    |    D    |    B    |   beta   |    C'    |"
-_TASK_TABLE_SEPR = "-------+---------+---------+---------+---------+----------+----------+"
-_TASK_CONTENT_FT = "   {:02d}  |  {:5.2f}  |  {:5.2f}  |  {:5.2f}  |  {:5.2f}  |  {:5.2f}   |  {:5.2f}   |"
-_TASK_TABLE_ENDL = "----------------------------------------------------------------------\n"
 def print_task_table(series, settings, betas):
     """ Simple task information table.
     """
@@ -62,22 +78,12 @@ def print_resource_table(table, col_names):
     """
     return
 
-
-_TASK_HEAD_TITLE_FS = "*** Schedulability of T_{:d} ***"
-_TASK_ANALYSIS_TITLE1_FS = "== Part 1: Utility =="
-_TASK_ANALYSIS_TITLE2_FS = "\n== Part 2: Real Analysis =="
-_PART1_UTILITY_CPR_FS = "  Utility = {0:.4f} {1:s} {2:.4f}."
-_PART1_UTILITY_PASS = "  Pass utility test."
-_PART1_UTILITY_FAIL = "  Failed on utility test."
-_PART2_R0_FS = "                        --> R_00 = {:.4f}"
-_PART2_IT_FS = "  # Iteration {:d} #"
-_PART2_BS_FS = "    Base: C_{:d} = {:.4f}"
-_PART2_DL_FS = "    Delay from task {:d} = {:.4f}"
-_PART2_RN_FS = "                        --> R_{:02d} = {:.4f}"
-_PART2_PASS = "  Converge. Schedulable.\n"
-_PART2_FAIL = "  Over deadline. Unschedulable.\n"
-
-_POLICIES = ["PIP", "SRP"]
+""" Note for settings
+    Plcy: Resource policy
+    B   : Consider blocking
+    D   : Consider deadline
+    CtSw: Context switching cost
+"""
 
 """ Note for resource obtaining definition
     {[Resource_name]: [Obtain_time], ...}
@@ -108,26 +114,27 @@ def util_analysis(series, settings):
             beta_sect = []
             for t_idx, task in enumerate(tasks_sorted):
                 # Obtain resources that can block off this task
-                over_res_name = [res_name for res_name, res_ceil in ceil.items() if res_ceil <= t_idx]
+                over_res_name = [res_name for (res_name, res_ceil) in ceil.items() if (res_ceil <= t_idx)]
                 over_res_id = [resource_mapping[res_name] for res_name in over_res_name]
                 # Select resources (col) that can block this process,
                 # then take row max for lower-prior tasks and sum up
                 # Note: It's safe to sum up empty nparray
                 beta_task.append(resource_table[t_idx+1::, over_res_id].max(axis=1, initial=0.).sum())
                 beta_sect.append(resource_table[t_idx+1::, over_res_id].max(axis=0, initial=0.).sum())
-            betas = np.array([beta_task.append, beta_sect.append]).min(axis=0)
+            betas = np.array([beta_task, beta_sect]).min(axis=0)
+            print(betas)
         elif settings["Plcy"] == _POLICIES[1]: # SRP
             betas = []
             for t_idx, task in enumerate(tasks_sorted):
-                over_res_name = [res_name for res_name, res_ceil in ceil.items() if res_ceil <= t_idx]
+                over_res_name = [res_name for res_name, res_ceil in ceil.items() if (res_ceil <= t_idx)]
                 over_res_id = [resource_mapping[res_name] for res_name in over_res_name]
+                # Take the maximum of intersection between "lower-part" and "over_res"
                 betas.append(resource_table[t_idx+1::, over_res_id].max(initial=0.))
-    else:
+    else: # Just take maximum lower-prior blocking time as beta
         betas = [
             max((s.get("B", 0.0) for s in tasks_sorted[i+1:]), default=0.0) if "B" in settings else 0.0
             for i in range(n_tasks)
         ]
-
     print_task_table(tasks_sorted, settings, betas)
 
     for i, tk in enumerate(tasks_sorted):
