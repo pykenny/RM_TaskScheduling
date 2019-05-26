@@ -1,6 +1,12 @@
 # RM_TaskScheduling
 Analyze schedulability under rate-monotonic(RM) scheduling. Life is so hard.
 
+## Dependencies
+```
+numpy
+scikit-learn
+```
+
 ## Some examples for usage
 ```python
 # First load the whole code. Module packing or file input will be provided in
